@@ -1,16 +1,78 @@
 use SNMP::Info;
-use strict;
+#use strict;
+use Parallel::ForkManager;
 use Time::HiRes qw(sleep gettimeofday);
 #use warnings;
-my $device = '192.168.184.21';
+use DBI;
+my $tid, $tid1;
+my $manager = new Parallel::ForkManager( 20 );
+my @devices;
+my $driver   = "SQLite";
+my $database = "project.sqlite3";
+my $dsn = "DBI:$driver:dbname=$database";
+my $userid = "";
+my $password = "";
+my $dbh = DBI->connect($dsn, $userid, $password, { RaiseError => 1 })
+   or die $DBI::errstr;
+#print "Opened database successfully\n";
+
+my $stmt = qq(SELECT * from listdevices;);
+my $sth = $dbh->prepare( $stmt );
+my $rv = $sth->execute() or die $DBI::errstr;
+
+if($rv < 0) {
+   print $DBI::errstr;
+}
+while(my @row = $sth->fetchrow_array()) {
+      push @devices,"$row[1]:$row[2]:$row[3]:$row[4]";
+}
+
+#print "@devices\n";
+#my $device = '192.168.184.21';
+foreach my $device (@devices) {
+         #print "$command\n";
+      $manager->start and next;
+      my @each = split /:/, $device;
+
+
 while(2<3){
+
 my $t1 = time;
+my $stmt = qq(SELECT * from listdevices where ip="$each[0]";);
+my $sth = $dbh->prepare( $stmt );
+my $rv = $sth->execute() or die $DBI::errstr;
+
+if($rv < 0) {
+   print $DBI::errstr;
+}
+while(my @row = $sth->fetchrow_array()) {
+	if(!$row[4]){
+		my $tid = "firstProbe_$t1";
+		my $stmt = qq(UPDATE listdevices set firstprobe = "$tid" where ip="$each[0]";);
+		my $rv = $dbh->do($stmt) or die $DBI::errstr;
+
+		if( $rv < 0 ) {
+		   print $DBI::errstr;
+		} 
+}
+else{
+my $tid1 = "latestProbe_$t1";
+my $stmt = qq(UPDATE listdevices set latestprobe = "$tid1" where ip="$each[0]";);
+		my $rv = $dbh->do($stmt) or die $DBI::errstr;
+
+		if( $rv < 0 ) {
+		   print $DBI::errstr;
+		} 
+}
+      
+}
+
 my $bridge = new SNMP::Info ( 
                             AutoSpecify => 1,
                             Debug       => 1,
-                            DestHost    => "$device",
-                            Community   => 'public',
-                            Version     => 1,
+                            DestHost    => "$each[0]",
+                            Community   => "$each[2]",
+                            Version     => "$each[3]",
 			    timeout     => 5,
 			    retries     => 2
                             );
@@ -44,4 +106,6 @@ foreach my $fw_index (keys %$fw_mac){
 };
 my $t2=time;
 sleep(60-$t2+$t1);
+}
+$manager->finish;
 }
