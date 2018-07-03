@@ -4,6 +4,8 @@ use Parallel::ForkManager;
 use Time::HiRes qw(sleep gettimeofday);
 #use warnings;
 use DBI;
+use POSIX;
+
 my $tid, $tid1;
 my $manager = new Parallel::ForkManager( 20 );
 my @devices;
@@ -15,6 +17,7 @@ my $password = "";
 my $dbh = DBI->connect($dsn, $userid, $password, { RaiseError => 1 })
    or die $DBI::errstr;
 #print "Opened database successfully\n";
+
 
 my $stmt = qq(SELECT * from listdevices;);
 my $sth = $dbh->prepare( $stmt );
@@ -29,83 +32,92 @@ while(my @row = $sth->fetchrow_array()) {
 
 #print "@devices\n";
 #my $device = '192.168.184.21';
+
 foreach my $device (@devices) {
          #print "$command\n";
       $manager->start and next;
-      my @each = split /:/, $device;
+         my @each = split /:/, $device;
+	
 
+	while(2<3){
+		
 
-while(2<3){
+		my $t1 = time;
+		my $datestring = strftime "%y %m %d %H:%M:%S %Y", localtime;
+		my @date = split / /, $datestring;
 
-my $t1 = time;
-my $stmt = qq(SELECT * from listdevices where ip="$each[0]";);
-my $sth = $dbh->prepare( $stmt );
-my $rv = $sth->execute() or die $DBI::errstr;
+		my $wanted = "$date[0]$date[1]$date[2]-$date[3]";
+		
+		
+		my $stmt = qq(SELECT * from listdevices where ip="$each[0]" AND version="$each[3]";);
+		my $sth = $dbh->prepare( $stmt );
+		my $rv = $sth->execute() or die $DBI::errstr;
 
-if($rv < 0) {
-   print $DBI::errstr;
-}
-while(my @row = $sth->fetchrow_array()) {
-	if(!$row[4]){
-		my $tid = "firstProbe_$t1";
-		my $stmt = qq(UPDATE listdevices set firstprobe = "$tid" where ip="$each[0]";);
-		my $rv = $dbh->do($stmt) or die $DBI::errstr;
-
-		if( $rv < 0 ) {
+		if($rv < 0) {
 		   print $DBI::errstr;
-		} 
-}
-else{
-my $tid1 = "latestProbe_$t1";
-my $stmt = qq(UPDATE listdevices set latestprobe = "$tid1" where ip="$each[0]";);
-		my $rv = $dbh->do($stmt) or die $DBI::errstr;
+		}
+		while(my @row = $sth->fetchrow_array()) {
+			if($row[5] eq '') {
+				
+				my $tid = "firstProbe_$wanted";
+				my $stmt = qq(UPDATE listdevices set firstprobe = "$tid",latestprobe="latestProbe_$wanted" where ip="$each[0]" AND version="$each[3]";);
+				my $rv = $dbh->do($stmt) or die $DBI::errstr;
 
-		if( $rv < 0 ) {
-		   print $DBI::errstr;
-		} 
-}
-      
-}
+				if( $rv < 0 ) {
+				   print $DBI::errstr;
+				} 
+		}
+			else{
+				my $tid1 = "latestProbe_$wanted";
+				my $stmt = qq(UPDATE listdevices set latestprobe = "$tid1" where ip="$each[0]" AND version="$each[3]";);
+				my $rv = $dbh->do($stmt) or die $DBI::errstr;
 
-my $bridge = new SNMP::Info ( 
-                            AutoSpecify => 1,
-                            Debug       => 1,
-                            DestHost    => "$each[0]",
-                            Community   => "$each[2]",
-                            Version     => "$each[3]",
-			    timeout     => 5,
-			    retries     => 2
-                            );
- 
+				if( $rv < 0 ) {
+				   print $DBI::errstr;
+				} 
+		}
+		      
+		}
 
- 
+		my $bridge = new SNMP::Info ( 
+				            AutoSpecify => 1,
+				            Debug       => 1,
+				            DestHost    => "$each[0]",
+				            Community   => "$each[2]",
+				            Version     => "$each[3]",
+					    timeout     => 5,
+					    retries     => 2
+				            );
+		 
 
-my $interfaces = $bridge->interfaces();
+		 
 
-my $fw_mac     = $bridge->fw_mac();
+		my $interfaces = $bridge->interfaces();
 
-my $fw_port    = $bridge->fw_port();
+		my $fw_mac     = $bridge->fw_mac();
 
-my $bp_index   = $bridge->bp_index();
+		my $fw_port    = $bridge->fw_port();
+
+		my $bp_index   = $bridge->bp_index();
 
 
-my $vlan = $bridge->qb_i_vlan();
-foreach my $fw_index (keys %$fw_mac){
-   my $mac   = $fw_mac->{$fw_index};
-   my $bp_id = $fw_port->{$fw_index};
-   my $iid   = $bp_index->{$bp_id};
-   my $port  = $interfaces->{$iid};
-   my $vlan_id= $vlan->{$iid};
-   if(!$vlan_id){
-   $vlan_id = 1;
-}
+		my $vlan = $bridge->qb_i_vlan();
+		foreach my $fw_index (keys %$fw_mac){
+		   my $mac   = $fw_mac->{$fw_index};
+		   my $bp_id = $fw_port->{$fw_index};
+		   my $iid   = $bp_index->{$bp_id};
+		   my $port  = $interfaces->{$iid};
+		   my $vlan_id= $vlan->{$iid};
+		   if(!$vlan_id){
+		   	$vlan_id = 1;
+			}
 
-   
- print "$device|VLAN$vlan_id|Port$port|$mac\n";
-  # print "Port:$port forwarding to $mac\n";
-};
-my $t2=time;
-sleep(60-$t2+$t1);
+		   
+		 print "$each[0]|VLAN$vlan_id|Port$port|$mac\n";
+		  # print "Port:$port forwarding to $mac\n";
+		};
+		my $t2=time;
+		sleep(60-$t2+$t1);
 }
 $manager->finish;
 }
