@@ -14,8 +14,22 @@ if(empty($ip) || empty($port)||empty($community) || empty($version)) {
 echo "FALSE";
 }
 else{
-$file_db->exec("INSERT INTO listdevices (ip,port,community,version) VALUES ('$ip','$port','$community','$version')");
-echo "OK";
+	$result = $file_db->query('SELECT * FROM listdevices');
+	$count = 0;
+	foreach ($result as $result) {
+		if($result['ip']==$ip && $result['port']==$port && $result['community']==$community && $result['version']==$version){
+			$count = $count+1;
+		}
+	}
+	if ($count ==0){
+	
+		$file_db->exec("INSERT INTO listdevices (ip,port,community,version) VALUES ('$ip','$port','$community','$version')");
+		echo "OK";
+
+	}
+	else{
+		echo "FALSE";
+		}
 }
 
 

@@ -103,20 +103,29 @@ foreach my $device (@devices) {
 
 		my $vlan = $bridge->qb_i_vlan();
 		foreach my $fw_index (keys %$fw_mac){
-		   my $mac   = $fw_mac->{$fw_index};
-		   my $bp_id = $fw_port->{$fw_index};
-		   my $iid   = $bp_index->{$bp_id};
-		   my $port  = $interfaces->{$iid};
-		   my $vlan_id= $vlan->{$iid};
-		   if(!$vlan_id){
-		   	$vlan_id = 1;
-			}
+			   my $mac   = $fw_mac->{$fw_index};
+			   my $bp_id = $fw_port->{$fw_index};
+			   my $iid   = $bp_index->{$bp_id};
+			   my $port  = $interfaces->{$iid};
+			   my $vlan_id= $vlan->{$iid};
+			   if(!$vlan_id){
+			   	$vlan_id = 1;
+				}
+			my $stmt = qq(CREATE TABLE IF NOT EXISTS list(ip TEXT NOT NULL,vlan TEXT NOT NULL,port TEXT,macs TEXT););
 
-		   
-		 print "$each[0]|VLAN$vlan_id|Port$port|$mac\n";
-		  # print "Port:$port forwarding to $mac\n";
-		};
-		my $t2=time;
+			my $rv = $dbh->do($stmt);
+			if($rv < 0) {
+			   print $DBI::errstr;
+			} else {
+			   #print "Table created successfully\n";
+			}
+			   my $stmt = qq(INSERT INTO list (ip,vlan,port,macs) VALUES ('$each[0]', 'VLAN$vlan_id',  'Port$port', '$mac'));
+			 my $rv = $dbh->do($stmt) or die $DBI::errstr;
+			 #print "$each[0]|VLAN$vlan_id|Port$port|$mac\n";
+			
+			  # print "Port:$port forwarding to $mac\n";
+			};
+			my $t2=time;
 		sleep(60-$t2+$t1);
 }
 $manager->finish;
