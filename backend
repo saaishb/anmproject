@@ -41,12 +41,14 @@ foreach my $device (@devices) {
 
 	while(2<3){
 		
-
+		my $fail =0;
 		my $t1 = time;
 		my $datestring = strftime "%y %m %d %H:%M:%S %Y", localtime;
 		my @date = split / /, $datestring;
+	     	my @hours = split /:/, $date[3];
+		my $h = $hours[0]+2;
 
-		my $wanted = "$date[0]$date[1]$date[2]-$date[3]";
+		my $wanted = "$date[0]$date[1]$date[2]-$h:$hours[1]:$hours[2]";
 		
 		
 		my $stmt = qq(SELECT * from listdevices where ip="$each[0]" AND version="$each[3]";);
@@ -87,11 +89,42 @@ foreach my $device (@devices) {
 				            Version     => "$each[3]",
 					    timeout     => 5,
 					    retries     => 2
-				            );
-		 
+				            ) or die $fail = 1;
+		
+		print $fail; 
+		
+		if ($fail==0){
+			my $stmt = qq(UPDATE listdevices set fail="0" where ip="$each[0]" AND version="$each[3]";);
+				my $rv = $dbh->do($stmt) or die $DBI::errstr;
 
-		 
+				if( $rv < 0 ) {
+				   print $DBI::errstr;
+				}
+		}
+		else {
+			my $stmt = qq(SELECT * from listdevices where ip="$each[0]" AND version="$each[3]";);
+			my $sth = $dbh->prepare( $stmt );
+			my $rv = $sth->execute() or die $DBI::errstr;
 
+			if($rv < 0) {
+			   print $DBI::errstr;
+			}
+			while(my @row = $sth->fetchrow_array()) {
+				if ($row[7] eq '') {
+					$x = 1;
+				}
+				else{
+					$x = $row[7]+1;
+				}
+			}
+			my $stmt = qq(UPDATE listdevices set fail="$x" where ip="$each[0]" AND version="$each[3]";);
+				my $rv = $dbh->do($stmt) or die $DBI::errstr;
+
+				if( $rv < 0 ) {
+				   print $DBI::errstr;
+				}
+		
+		}
 		my $interfaces = $bridge->interfaces();
 
 		my $fw_mac     = $bridge->fw_mac();
