@@ -1,0 +1,31 @@
+use SNMP::Info;
+my $bridge = new SNMP::Info ( 
+				            AutoSpecify => 1,
+				            Debug       => 1,
+				            DestHost    => "192.168.184.21",
+				            Community   => "public",
+				            Version     => "1",
+					    timeout     => 5,
+					    retries     => 2
+);
+my $interfaces = $bridge->interfaces();
+
+		my $fw_mac     = $bridge->fw_mac();
+
+		my $fw_port    = $bridge->fw_port();
+
+		my $bp_index   = $bridge->bp_index();
+
+
+		my $vlan = $bridge->qb_i_vlan();
+
+		foreach my $fw_index (keys %$fw_mac){
+			   my $mac   = $fw_mac->{$fw_index};
+			   my $bp_id = $fw_port->{$fw_index};
+			   my $iid   = $bp_index->{$bp_id};
+			   my $port  = $interfaces->{$iid};
+			   my $vlan_id= $vlan->{$iid};
+			   if(!$vlan_id){
+			   	$vlan_id = 1;
+				}
+print "VLAN$vlan_id|Port$port| $mac \n";};
