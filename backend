@@ -17,168 +17,204 @@ my $userid = "";
 my $password = "";
 my $dbh = DBI->connect($dsn, $userid, $password, { RaiseError => 1 }) or die $DBI::errstr;
 
+while(2<3){
+	my $t1 = time;
+	@devices =();
+	my $stmt = qq(SELECT * from listdevices;);
+	my $sth = $dbh->prepare( $stmt );
+	my $rv = $sth->execute() or die $DBI::errstr;
+
+	if($rv < 0) {
+	   print $DBI::errstr;
+	}
+	while(my @row = $sth->fetchrow_array()) {
+	      push @devices,"$row[1]:$row[2]:$row[3]:$row[4]";
+	}
 
 
-my $stmt = qq(SELECT * from listdevices;);
-my $sth = $dbh->prepare( $stmt );
-my $rv = $sth->execute() or die $DBI::errstr;
 
-if($rv < 0) {
-   print $DBI::errstr;
-}
-while(my @row = $sth->fetchrow_array()) {
-      push @devices,"$row[1]:$row[2]:$row[3]:$row[4]";
-}
-
-
-
-foreach my $device (@devices) {
-         
-      	 $manager->start and next;
-         my @each = split /:/, $device;
-	
-
-	 while(2<3){
+	foreach my $device (@devices) {
+		 
+	      	 $manager->start and next;
+		 my @each = split /:/, $device;
 		
-		my $fail =0;
-		my $t1 = time;
-		my $datestring = strftime "%y %m %d %H:%M:%S %Y", localtime;
-		my @date = split / /, $datestring;
-	     	my @hours = split /:/, $date[3];
-		my $h = $hours[0]+2;
 
-		my $wanted = "$date[0]$date[1]$date[2]-$h:$hours[1]:$hours[2]";
 		
-		
-		my $stmt = qq(SELECT * from listdevices where ip="$each[0]" AND version="$each[3]";);
-		my $sth = $dbh->prepare( $stmt );
-		my $rv = $sth->execute() or die $DBI::errstr;
+			
+			my $fail =0;
+			
+			my $datestring = strftime "%y %m %d %H:%M:%S %Y", localtime;
+			my @date = split / /, $datestring;
+		     	my @hours = split /:/, $date[3];
+			my $h = $hours[0]+2;
 
-		if($rv < 0) {
-			print $DBI::errstr;
-		}
-		while(my @row = $sth->fetchrow_array()) {
-			if($row[5] eq '') {
-				
-				my $tid = "firstProbe_$wanted";
-				my $stmt = qq(UPDATE listdevices set firstprobe = "$tid",latestprobe="latestProbe_$wanted" where ip="$each[0]" AND version="$each[3]";);
-				my $rv = $dbh->do($stmt) or die $DBI::errstr;
-
-				if( $rv < 0 ) {
-				   	print $DBI::errstr;
-				} 
-		}
-			else{
-				my $tid1 = "latestProbe_$wanted";
-				my $stmt = qq(UPDATE listdevices set latestprobe = "$tid1" where ip="$each[0]" AND version="$each[3]";);
-				my $rv = $dbh->do($stmt) or die $DBI::errstr;
-
-				if( $rv < 0 ) {
-				   	print $DBI::errstr;
-				} 
-		}
-		      
-		}
-
-		my $bridge = new SNMP::Info ( 
-				            AutoSpecify => 1,
-				            Debug       => 1,
-				            DestHost    => "$each[0]",
-				            Community   => "$each[2]",
-				            Version     => "$each[3]",
-					    timeout     => 5,
-					    retries     => 2
-				            ) or do {$fail = 1;};
-		
-		print $fail; 
-		
-		if ($fail==0){
-			my $stmt = qq(UPDATE listdevices set fail="0" where ip="$each[0]" AND version="$each[3]";);
-			my $rv = $dbh->do($stmt) or die $DBI::errstr;
-
-			if( $rv < 0 ) {
-				print $DBI::errstr;
-			}
-			my $interfaces = $bridge->interfaces();
-
-			my $fw_mac     = $bridge->fw_mac();
-
-			my $fw_port    = $bridge->fw_port();
-
-			my $bp_index   = $bridge->bp_index();
-
-
-			my $vlan = $bridge->qb_i_vlan();
-
-			foreach my $fw_index (keys %$fw_mac){
-				   my $mac   = $fw_mac->{$fw_index};
-				   my $bp_id = $fw_port->{$fw_index};
-				   my $iid   = $bp_index->{$bp_id};
-				   my $port  = $interfaces->{$iid};
-				   my $vlan_id= $vlan->{$iid};
-				   if(!$vlan_id){
-				   	$vlan_id = 1;
-					}
-				my $stmt = qq(CREATE TABLE IF NOT EXISTS list(ip TEXT NOT NULL,vlan TEXT NOT NULL,port TEXT,macs TEXT););
-
-				my $rv = $dbh->do($stmt);
-				if($rv < 0) {
-				   	print $DBI::errstr;
-				} 
-				
-				#my $stmt = qq(INSERT INTO list (ip,vlan,port,macs) VALUES ('$each[0]', 'VLAN$vlan_id',  'Port$port', '$mac'););
-				my $a =0;
-				my $stmt = qq(SELECT * from list;);
-				my $sth = $dbh->prepare( $stmt );
-				my $rv = $sth->execute() or die $DBI::errstr;
-
-				if($rv < 0) {
-				   print $DBI::errstr;
-				}
-				while(my @row = $sth->fetchrow_array()) {
-				      	
-					if($row[0] eq "$each[0]" and $row[1] eq "VLAN$vlan_id" and $row[2] eq "Port$port" and $row[3] eq "$mac"){
-						$a = $a +1;
-					}
-			       	
-				}
-				if($a == 0){
-					
-					my $stmt = qq(INSERT INTO list (ip,vlan,port,macs) VALUES ('$each[0]', 'VLAN$vlan_id',  'Port$port', '$mac'););
-					my $rv = $dbh->do($stmt) or die $DBI::errstr;
-					
-				}		
-			};
-
-		}
-		else {
+			my $wanted = "$date[0]$date[1]$date[2]-$h:$hours[1]:$hours[2]";
+			
+			
 			my $stmt = qq(SELECT * from listdevices where ip="$each[0]" AND version="$each[3]";);
 			my $sth = $dbh->prepare( $stmt );
 			my $rv = $sth->execute() or die $DBI::errstr;
 
 			if($rv < 0) {
-			   	 $DBI::errstr;
+				print $DBI::errstr;
 			}
 			while(my @row = $sth->fetchrow_array()) {
-				if ($row[7] eq '') {
-					$x = 1;
-				}
-				else{
-					$x = $row[7]+1;
-				}
+				if($row[5] eq '') {
+					
+					my $tid = "firstProbe_$wanted";
+					my $stmt = qq(UPDATE listdevices set firstprobe = "$tid",latestprobe="latestProbe_$wanted" where ip="$each[0]" AND version="$each[3]";);
+					my $rv = $dbh->do($stmt) or die $DBI::errstr;
+
+					if( $rv < 0 ) {
+					   	print $DBI::errstr;
+					} 
 			}
-			my $stmt = qq(UPDATE listdevices set fail="$x" where ip="$each[0]" AND version="$each[3]";);
+				else{
+					my $tid1 = "latestProbe_$wanted";
+					my $stmt = qq(UPDATE listdevices set latestprobe = "$tid1" where ip="$each[0]" AND version="$each[3]";);
+					my $rv = $dbh->do($stmt) or die $DBI::errstr;
+
+					if( $rv < 0 ) {
+					   	print $DBI::errstr;
+					} 
+			}
+			      
+			}
+
+			my $bridge = new SNMP::Info ( 
+						    AutoSpecify => 1,
+						    Debug       => 1,
+						    DestHost    => "$each[0]",
+						    Community   => "$each[2]",
+						    Version     => "$each[3]",
+						    timeout     => 5,
+						    retries     => 2
+						    ) or do {$fail = 1;};
+			
+			print $fail; 
+			
+			if ($fail==0){
+				my $stmt = qq(UPDATE listdevices set fail="0" where ip="$each[0]" AND version="$each[3]";);
 				my $rv = $dbh->do($stmt) or die $DBI::errstr;
 
 				if( $rv < 0 ) {
-				   	print $DBI::errstr;
+					print $DBI::errstr;
 				}
-		
-		}
-		
+				my $interfaces = $bridge->interfaces();
+
+				my $fw_mac     = $bridge->fw_mac();
+
+				my $fw_port    = $bridge->fw_port();
+
+				my $bp_index   = $bridge->bp_index();
+
+
+				my $vlan = $bridge->qb_i_vlan();
+
+				foreach my $fw_index (keys %$fw_mac){
+					   my $mac   = $fw_mac->{$fw_index};
+					   my $bp_id = $fw_port->{$fw_index};
+					   my $iid   = $bp_index->{$bp_id};
+					   my $port  = $interfaces->{$iid};
+					   my $vlan_id= $vlan->{$iid};
+					   if(!$vlan_id){
+					   	$vlan_id = 1;
+						}
+					my $stmt = qq(CREATE TABLE IF NOT EXISTS list(ip TEXT NOT NULL,vlan TEXT NOT NULL,port TEXT,macs TEXT););
+
+					my $rv = $dbh->do($stmt);
+					if($rv < 0) {
+					   	print $DBI::errstr;
+					} 
+					
+					#my $stmt = qq(INSERT INTO list (ip,vlan,port,macs) VALUES ('$each[0]', 'VLAN$vlan_id',  'Port$port', '$mac'););
+					my $a =0;
+					my $stmt = qq(SELECT * from list;);
+					my $sth = $dbh->prepare( $stmt );
+					my $rv = $sth->execute() or die $DBI::errstr;
+
+					if($rv < 0) {
+					   print $DBI::errstr;
+					}
+					while(my @row = $sth->fetchrow_array()) {
+					      	
+						if($row[0] eq "$each[0]" and $row[1] eq "VLAN$vlan_id" and $row[2] eq "Port$port" and $row[3] eq "$mac"){
+							$a = $a +1;
+						}
+				       	
+					}
+					if($a == 0){
+						my $b =0;
+						my $stmt = qq(SELECT * from list;);
+						my $sth = $dbh->prepare( $stmt );
+						my $rv = $sth->execute() or die $DBI::errstr;
+
+						if($rv < 0) {
+						   print $DBI::errstr;
+						}
+						while(my @row = $sth->fetchrow_array()) {
+							if($row[0] eq "$each[0]" and $row[1] eq "VLAN$vlan_id" and $row[2] eq "Port$port"){
+							$b = $b +1;
+							}
+						}
+						if($b == 0){
+							my $stmt = qq(INSERT INTO list (ip,vlan,port,macs) VALUES ('$each[0]', 'VLAN$vlan_id',  'Port$port', '$mac'););
+							my $rv = $dbh->do($stmt) or die $DBI::errstr;
+						}
+						else{	
+							my $stmt = qq(SELECT * from list WHERE ip = '$each[0]' AND vlan = 'VLAN$vlan_id' AND port = 'Port$port';);
+							my $sth = $dbh->prepare( $stmt );
+							my $rv = $sth->execute() or die $DBI::errstr;
+
+							if($rv < 0) {
+							   print $DBI::errstr;
+							}
+							$c =0;
+							while(my @row = $sth->fetchrow_array()) {
+								if (index($row[3], $mac) == -1) {
+    									$mac = "$mac $row[3]" ;
+									$c = $c+1;
+								} 
+								
+							}
+							if($c!=0){
+								my $stmt = qq(UPDATE list SET macs = '$mac' WHERE ip = '$each[0]' AND vlan = 'VLAN$vlan_id' AND port = 'Port$port'; );
+								my $rv = $dbh->do($stmt) or die $DBI::errstr;
+							}
+						}
+					}		
+				};
+
+			}
+			else {
+				my $stmt = qq(SELECT * from listdevices where ip="$each[0]" AND version="$each[3]";);
+				my $sth = $dbh->prepare( $stmt );
+				my $rv = $sth->execute() or die $DBI::errstr;
+
+				if($rv < 0) {
+				   	 $DBI::errstr;
+				}
+				while(my @row = $sth->fetchrow_array()) {
+					if ($row[7] eq '') {
+						$x = 1;
+					}
+					else{
+						$x = $row[7]+1;
+					}
+				}
+				my $stmt = qq(UPDATE listdevices set fail="$x" where ip="$each[0]" AND version="$each[3]";);
+					my $rv = $dbh->do($stmt) or die $DBI::errstr;
+
+					if( $rv < 0 ) {
+					   	print $DBI::errstr;
+					}
 			
-		my $t2=time;
-		sleep(60-$t2+$t1);
-}
-$manager->finish;
+			}
+			
+				
+			
+	$manager->finish;
+	}
+	my $t2=time;
+	sleep(60-$t2+$t1);
 }

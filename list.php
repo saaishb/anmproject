@@ -12,6 +12,8 @@ catch(PDOException $e) {
 
 $result = $file_db->query('SELECT * FROM list');
 foreach ($result as $result) {
+	
+	
     print $result['ip'].'|'.$result['vlan'].'|'.$result['port'].'|'.$result['macs'].'|'."\n";
 }
 ?>
